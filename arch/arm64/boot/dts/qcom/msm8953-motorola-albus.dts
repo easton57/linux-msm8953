@@ -1,0 +1,554 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) 2025, Easton Seidel
+ */
+/dts-v1/;
+
+#include "msm8953.dtsi"
+#include "pm8953.dtsi"
+#include "pmi8950.dtsi"
+
+/delete-node/ &cont_splash_mem;
+/delete-node/ &qseecom_mem;
+
+/ {
+	model = "Moto Z2 Play";
+	compatible = "motorola,albus", "qcom,msm8953-albus", "qcom,msm8953-moto", "qcom,msm8953";
+	chassis-type = "handset";
+	qcom,msm-id = <293 0x0>;
+	qcom,board-id = <0x4A 0x8400>;
+
+	battery: battery {
+		compatible = "simple-battery";
+
+		charge-full-design-microamp-hours = <3038000>;
+		constant-charge-current-max-microamp = <1000000>;
+		voltage-min-design-microvolt = <3400000>;
+		voltage-max-design-microvolt = <4400000>;
+	};
+
+	chosen {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		framebuffer@90001000 {
+			compatible = "simple-framebuffer";
+			reg = <0 0x90001000 0 (1080 * 1920 * 3)>;
+
+			width = <1080>;
+			height = <1920>;
+			stride = <(1080 * 3)>;
+			format = "r8g8b8";
+
+			power-domains = <&gcc MDSS_GDSC>;
+
+			clocks = <&gcc GCC_MDSS_AHB_CLK>,
+				 <&gcc GCC_MDSS_AXI_CLK>,
+				 <&gcc GCC_MDSS_VSYNC_CLK>,
+				 <&gcc GCC_MDSS_MDP_CLK>,
+				 <&gcc GCC_MDSS_BYTE0_CLK>,
+				 <&gcc GCC_MDSS_PCLK0_CLK>,
+				 <&gcc GCC_MDSS_ESC0_CLK>;
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		pinctrl-names = "tlmm_gpio_key_active", "tlmm_gpio_key_suspend";
+		pinctrl-0 = <&gpio_key_default>;
+		pinctrl-1 = <&gpio_key_default>;
+
+		key-volume-up {
+			label = "Volume Up";
+			gpios = <&tlmm 85 GPIO_ACTIVE_LOW>;
+			linux,input-type = <1>;
+			linux,code = <KEY_VOLUMEUP>;
+			gpio-key,wakeup;
+			debounce-interval = <15>;
+		};
+	};
+
+	reserved-memory {
+		qseecom_mem: qseecom@84300000 {
+			reg = <0x0 0x84300000 0x0 0x2000000>;
+			no-map;
+		};
+
+		cont_splash_mem: cont-splash@90001000 {
+			reg = <0x0 0x90001000 0x0 (1080 * 1920 * 3)>;
+			no-map;
+		};
+
+		ramoops@ef000000 {
+			compatible = "ramoops";
+			reg = <0x0 0xef000000 0x0 0xC0000>;
+			console-size = <0x40000>;
+			ftrace-size = <0>;
+			record-size = <0x3f800>;
+			pmsg-size = <0x800>;
+		};
+	};
+
+	vph_pwr: vph-pwr-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vph_pwr";
+		regulator-always-on;
+		regulator-boot-on;
+	};
+};
+
+&atc_leds {
+	status = "okay";
+};
+
+&hsusb_phy {
+	vdd-supply = <&pm8953_l3>;
+	vdda-pll-supply = <&pm8953_l7>;
+	vdda-phy-dpdm-supply = <&pm8953_l13>;
+
+	status = "okay";
+};
+
+&i2c_2 {
+	status = "okay";
+	reg = <0x78b6000 0x1000>;
+
+	cs35l35@40 {
+		compatible = "cirrus,cs35l35";
+		reg = <0x40>;
+		reset-gpios = <&tlmm 94 0>;
+		irq-gpios = <&tlmm 63 0>;
+		amp-gain-zc;
+		interrupt-parent = <&tlmm>;
+
+		VA-supply = <&dummy_vreg>;
+		VP-supply = <&dummy_vreg>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cs35l35_irq_default &cs35l35_reset_default>;
+	};
+};
+
+&i2c_3 {
+	status = "okay";
+
+	touchscreen@20 {	// s3508sga
+		// Reference: https://gitlab.com/msm8998-mainline/linux/-/blob/master/arch/arm64/boot/dts/qcom/msm8998-oneplus-common.dtsi?ref_type=heads
+		compatible = "syna,rmi4-i2c";
+		reg = <0x20>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <65 IRQ_TYPE_EDGE_FALLING>;
+
+		reset-gpios = <&tlmm 64 GPIO_ACTIVE_LOW>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&ts_reset_active &ts_int_active>;
+
+		vdd-supply = <&pm8953_l22>;
+		vio-supply = <&pm8953_l6>;
+
+		syna,reset-delay-ms = <300>;
+		syna,startup-delay-ms = <300>;
+
+		rmi4-f01@1 {
+			reg = <0x01>;
+			syna,nosleep-mode = <1>;
+		};
+
+		rmi4-f12@12 {
+			reg = <0x12>;
+			syna,rezero-wait-ms = <20>;
+			syna,sensor-type = <1>;
+			touchscreen-x-mm = <68>;
+			touchscreen-y-mm = <122>;
+		};
+	};
+
+};
+
+&spi_6 {
+	status = "disabled";
+};
+
+&spi_7 {
+	status = "ok";
+
+	marley: marley@0 {
+		compatible = "cirrus,cs47l35";
+		reg = <0x0>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <46 0>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+};
+
+&ibb {
+	qcom,discharge-resistor-kohms = <32>;
+};
+
+&lab {
+	qcom,soft-start-us = <800>;
+};
+
+&lpass {
+	status = "okay";
+};
+
+&mdss {
+	status = "okay";
+};
+
+&mdss_dsi0 {
+	status = "okay";
+
+	vdda-supply = <&pm8953_s3>;
+	vddio-supply = <&pm8953_l6>;
+
+	panel: panel@0 {
+		compatible = "lenovo,kuntao-549";
+		reg = <0>;
+
+		pinctrl-0 = <&pmx_mdss_default>;
+		pinctrl-1 = <&pmx_mdss_sleep>;
+		pinctrl-names = "default", "sleep";
+
+		reset-gpios = <&tlmm 61 GPIO_ACTIVE_LOW>;
+
+		vsp-supply = <&lab>;
+		vsn-supply = <&ibb>;
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&mdss_dsi0_out>;
+			};
+		};
+	};
+};
+
+&mdss_dsi0_out {
+	data-lanes = <0 1 2 3>;
+	remote-endpoint = <&panel_in>;
+};
+
+&mdss_dsi0_phy {
+	vcca-supply = <&pm8953_l3>;
+
+	status = "okay";
+};
+
+&mpss {
+	status = "okay";
+
+	mss-supply = <&pm8953_s1>;
+	pll-supply = <&pm8953_l7>;
+};
+
+&pm8953_resin {
+	linux,code = <KEY_VOLUMEDOWN>;
+	status = "okay";
+};
+
+&pmi8950_fg {
+	monitored-battery = <&battery>;
+	power-supplies = <&pmi8950_smbcharger>;
+	status = "okay";
+};
+
+&pmi8950_haptics { // Not working
+	qcom,actuator-type = <HAP_TYPE_ERM>;
+	qcom,brake-pattern = <0x3 0x3 0x0 0x0>;
+	qcom,wave-play-rate-us = <5263>;
+	qcom,wave-shape = <HAP_WAVE_SQUARE>;
+
+	status = "okay";
+};
+
+&pmi8950_smbcharger {
+	monitored-battery = <&battery>;
+	status = "okay";
+};
+
+&pmi8950_wled {
+	qcom,current-limit-microamp = <25000>;
+	qcom,num-strings = <3>;
+	qcom,external-pfet;
+	qcom,cabc;
+
+	status = "okay";
+};
+
+&rpm_requests {
+	regulators {
+		compatible = "qcom,rpm-pm8953-regulators";
+		vdd_s1-supply = <&vph_pwr>;
+		vdd_s2-supply = <&vph_pwr>;
+		vdd_s3-supply = <&vph_pwr>;
+		vdd_s4-supply = <&vph_pwr>;
+		vdd_s5-supply = <&vph_pwr>;
+		vdd_s6-supply = <&vph_pwr>;
+		vdd_s7-supply = <&vph_pwr>;
+		vdd_l1-supply = <&pm8953_s3>;
+		vdd_l2_l3-supply = <&pm8953_s3>;
+		vdd_l4_l5_l6_l7_l16_l19-supply = <&pm8953_s4>;
+		vdd_l8_l11_l12_l13_l14_l15-supply = <&vph_pwr>;
+		vdd_l9_l10_l17_l18_l22-supply = <&vph_pwr>;
+
+		pm8953_s1: s1 {
+			regulator-min-microvolt = <863000>;
+			regulator-max-microvolt = <1152000>;
+		};
+
+		pm8953_s3: s3 {
+			regulator-min-microvolt = <1224000>;
+			regulator-max-microvolt = <1224000>;
+		};
+
+		pm8953_s4: s4 {
+			regulator-min-microvolt = <1896000>;
+			regulator-max-microvolt = <2048000>;
+		};
+
+		pm8953_l1: l1 {
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1100000>;
+		};
+
+		pm8953_l2: l2 {
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+		};
+
+		pm8953_l3: l3 {
+			regulator-min-microvolt = <925000>;
+			regulator-max-microvolt = <925000>;
+			regulator-allow-set-load;
+		};
+
+		pm8953_l5: l5 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+		};
+
+		pm8953_l6: l6 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
+		};
+
+		pm8953_l7: l7 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1900000>;
+		};
+
+		pm8953_l8: l8 {
+			regulator-min-microvolt = <2900000>;
+			regulator-max-microvolt = <2900000>;
+		};
+
+		pm8953_l9: l9 {
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3300000>;
+		};
+
+		pm8953_l10: l10 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+		};
+
+		pm8953_l11: l11 {
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <3000000>;
+		};
+
+		pm8953_l12: l12 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <3000000>;
+		};
+
+		pm8953_l13: l13 {
+			regulator-min-microvolt = <3075000>;
+			regulator-max-microvolt = <3125000>;
+		};
+
+		pm8953_l15: l15 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+		};
+
+		pm8953_l16: l16 {
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+		};
+
+		pm8953_l17: l17 {
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <3000000>;
+		};
+
+		pm8953_l19: l19 {
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1350000>;
+		};
+
+		pm8953_l22: l22 {
+			regulator-always-on;
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2850000>;
+		};
+
+		pm8953_l23: l23 {
+			regulator-min-microvolt = <975000>;
+			regulator-max-microvolt = <1225000>;
+		};
+	};
+};
+
+&sdhc_1 {
+	vmmc-supply = <&pm8953_l8>;
+	vqmmc-supply = <&pm8953_l5>;
+
+	status = "okay";
+};
+
+&sdhc_2 {
+	vmmc-supply = <&pm8953_l11>;
+	vqmmc-supply = <&pm8953_l12>;
+
+	cd-gpios = <&tlmm 133 GPIO_ACTIVE_LOW>;
+
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&sdc2_clk_on &sdc2_cmd_on &sdc2_data_on &sdc2_cd_off>;
+	pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
+
+	status = "okay";
+};
+
+&sound_card {
+	status = "okay";
+};
+
+&tlmm {
+	gpio-reserved-ranges = <1 2>, <96 4>, <111 1>, <126 1>;
+
+	ts_int_default: ts-int-default-state {
+		pins = "gpio65";
+		function = "gpio";
+		bias-disable;
+	};
+
+	ts_int_active: ts-int-active-state {
+		pins = "gpio65";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-up;
+	};
+
+	ts_reset_default: ts-reset-default-state {
+		pins = "gpio64";
+		function = "gpio";
+		output-low;
+	};
+
+	ts_reset_active: ts-reset-active-state {
+		pins = "gpio64";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-up;
+	};
+
+	pmx_mdss_default: pmx-mdss-default-state {
+		pins = "gpio61";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-disable;
+		output-high;
+	};
+
+	pmx_mdss_sleep: pmx-mdss-sleep-state {
+		pins = "gpio61";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+
+	nfc_irq_default: nfc-irq-state {
+		pins = "gpio17";
+		bias-pull-down;
+		drive-strength = <2>;
+	};
+
+	nfc_pwr_default: nfc-pwr-state {
+		pins = "gpio16";
+		bias-pull-down;
+		output-low;
+		drive-strength = <2>;
+	};
+
+	nfc_firm_default: nfc-firm-state {
+		pins = "gpio62";
+		bias-pull-down;
+		output-low;
+		drive-strength = <2>;
+	};
+
+	cs35l35_irq_default: cs35l35_irq_default {
+		config {
+			pins = "gpio63";
+			bias-pull-up;
+			drive-strength = <2>;
+		};
+	};
+
+	cs35l35_reset_default: cs35l35_reset_default {
+		config {
+			pins = "gpio94";
+			output-high;
+			bias-pull-up;
+			drive-strength = <2>;
+		};
+	};
+};
+
+&usb3 {
+	status = "okay";
+};
+
+&wcd_codec {
+	status = "okay";
+
+	qcom,micbias1-ext-cap;
+	qcom,micbias2-ext-cap;
+	qcom,hphl-jack-type-normally-open;
+
+	vdd-cdc-io-supply = <&pm8953_l5>;
+	vdd-cdc-tx-rx-cx-supply = <&pm8953_s4>;
+	vdd-micbias-supply = <&pm8953_l13>;
+};
+
+&wcnss {
+	status = "okay";
+	vddpx-supply = <&pm8953_l5>;
+};
+
+&wcnss_ctrl {
+	firmware-name = "qcom/msm8953/motorola/albus/WCNSS_qcom_wlan_nv.bin";
+};
+
+&wcnss_iris {
+	compatible = "qcom,wcn3660b";
+
+	vddxo-supply = <&pm8953_l7>;
+	vddrfa-supply = <&pm8953_l19>;
+	vddpa-supply = <&pm8953_l9>;
+	vdddig-supply = <&pm8953_l5>;
+};
+
+&gpu_zap_shader {
+	firmware-name = "qcom/msm8953/motorola/albus/gpu/a506_zap.mdt";
+};
